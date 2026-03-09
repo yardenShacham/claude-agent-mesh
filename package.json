@@ -1,0 +1,23 @@
+{
+  "name": "claude-agent-mesh",
+  "version": "1.0.0",
+  "description": "CLI tool that orchestrates multiple Claude Code sessions as specialized agents",
+  "type": "module",
+  "bin": {
+    "agent-mesh": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/cli.js",
+    "dev": "tsc -w"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "blessed-xterm": "^1.5.1",
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/blessed": "^0.1.27",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  }
+}

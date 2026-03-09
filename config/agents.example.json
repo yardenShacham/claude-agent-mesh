@@ -1,0 +1,24 @@
+{
+  "agents": [
+    {
+      "name": "node-internal-api",
+      "directory": "/Users/yardenshacham/PhytechGit/node-internal-api",
+      "description": "APIs for task-management and client-management apps, auto-dispatcher logic and APIs. Most DB interactions are read-only (not write)."
+    },
+    {
+      "name": "phytoweb-ruby",
+      "directory": "/Users/yardenshacham/PhytechGit/phytoweb",
+      "description": "Core backend — main Phytech backend owning all DB schemas, migrations, and model logic. Handles most inserts and updates. The source of truth for DB schema, model relationships, and configuration data."
+    },
+    {
+      "name": "internal-tools",
+      "directory": "/Users/yardenshacham/PhytechGit/internal-tools",
+      "description": "Monorepo with two internal web apps: (1) Task-Management — dispatchers view, edit, create, and manage tasks, dispatch work, view actions and issues (alerts), includes the AI auto-dispatcher mode. (2) Client-Management — batch configuration management across all Phytech operations."
+    },
+    {
+      "name": "manage-clients",
+      "directory": "/Users/yardenshacham/PhytechGit/manage-clients",
+      "description": "Client management app (standalone) — batch configuration management across all Phytech operations, agricultural client monitoring, map-based field visualization, and client configuration."
+    }
+  ]
+}
