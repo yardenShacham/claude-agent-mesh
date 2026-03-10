@@ -1,8 +1,9 @@
-import { createRequire } from "node:module";
+import {createRequire} from "node:module";
+import {execFileSync} from "node:child_process";
 import blessed from "blessed";
-import type { AgentConfig, AgentTerminalRef, McpSharedContext } from "./types.js";
-import { setInteractive, clearSessions } from "./session-store.js";
-import { startMcpHttpServer } from "./mcp-http-server.js";
+import type {AgentConfig, AgentTerminalRef, McpSharedContext} from "./types.js";
+import {clearSessions, setInteractive} from "./session-store.js";
+import {startMcpHttpServer} from "./mcp-http-server.js";
 
 const require = createRequire(import.meta.url);
 const XTerm = require("blessed-xterm");
@@ -174,16 +175,54 @@ export function launchTui(options: TuiOptions) {
       });
       termContainer.append(xterm);
 
-      // Click to focus in split mode
-      xterm.on("click", () => {
-        const idx = terminals.findIndex((t) => t.xterm === xterm);
-        if (idx !== -1 && idx !== activeIndex) {
-          activeIndex = idx;
-          terminals[activeIndex].xterm.focus();
-          updateSidebarItems();
-          screen.render();
+      // Monkey-patch render() to highlight selection
+      const originalRender = xterm.render.bind(xterm);
+      xterm.render = function () {
+        const ret = originalRender();
+        if (!ret) return ret;
+
+        const term = (xterm as any).term;
+        const sm = term.selectionManager;
+        if (!sm?._model) return ret;
+
+        const start = sm._model.finalSelectionStart;
+        const end = sm._model.finalSelectionEnd;
+        if (!start || !end || (start[0] === end[0] && start[1] === end[1])) return ret;
+
+        const xi = ret.xi + (xterm as any).ileft;
+        const xl = ret.xl - (xterm as any).iright;
+        const yi = ret.yi + (xterm as any).itop;
+        const yl = ret.yl - (xterm as any).ibottom;
+
+        const selStartRow = start[1] - term.ydisp;
+        const selEndRow = end[1] - term.ydisp;
+
+        for (let viewRow = Math.max(selStartRow, 0); viewRow <= Math.min(selEndRow, term.rows - 1); viewRow++) {
+          const screenY = yi + viewRow;
+          if (screenY >= yl || screenY < 0) continue;
+          const sline = (xterm as any).screen.lines[screenY];
+          if (!sline) continue;
+
+          let colStart = 0;
+          let colEnd = term.cols;
+          if (viewRow === selStartRow) colStart = start[0];
+          if (viewRow === selEndRow) colEnd = end[0];
+
+          for (let col = colStart; col < colEnd; col++) {
+            const screenX = xi + col;
+            if (screenX >= xl || screenX < 0 || !sline[screenX]) continue;
+
+            const attr = sline[screenX][0];
+            const fg = (attr >> 9) & 0x1ff;
+            const bg = attr & 0x1ff;
+            sline[screenX][0] = (attr & ~((0x1ff << 9) | 0x1ff)) | (bg << 9) | fg;
+          }
+
+          sline.dirty = true;
         }
-      });
+
+        return ret;
+      };
 
       return { config, xterm };
     });
@@ -242,6 +281,21 @@ export function launchTui(options: TuiOptions) {
     let completionIndex = 0;
     let filteredCommands: TuiCommand[] = [];
     let splitVisible: number[] | null = null;
+
+    // --- Mouse selection state ---
+    let dragState: {
+      startScreenX: number;
+      startScreenY: number;
+      xtermWidget: InstanceType<typeof XTerm>;
+      terminalIndex: number;
+      isDragging: boolean;
+    } | null = null;
+
+    function screenToBufferCoords(xt: InstanceType<typeof XTerm>, sx: number, sy: number) {
+      const col = sx - (xt as any).aleft;
+      const row = sy - (xt as any).atop;
+      return { col, bufferRow: (xt as any).term.ydisp + row };
+    }
 
     function layoutTerminals() {
       const containerWidth = (screen.width as number) - SIDEBAR_WIDTH;
@@ -530,8 +584,8 @@ export function launchTui(options: TuiOptions) {
         cmd.name.toLowerCase().startsWith(cmdPortion) ||
         cmd.aliases.some((a) => a.toLowerCase().startsWith(cmdPortion))
       );
-      const listHeight = Math.min(filteredCommands.length + 2, 10);
-      completionList.height = listHeight;
+
+      completionList.height = Math.min(filteredCommands.length + 2, 10);
       completionList.setItems(
         filteredCommands.map((cmd) => `${cmd.name}  ${cmd.description}`) as unknown as string[]
       );
@@ -647,6 +701,130 @@ export function launchTui(options: TuiOptions) {
       if (key.full === "C-g") {
         openPrompt();
         return;
+      }
+    });
+
+    // --- Mouse selection handler ---
+    screen.on("mouse", (ev: any) => {
+      if (promptActive) return;
+
+      if (ev.action === "mousedown") {
+        // blessed misreports button-held mouse motion as "mousedown" on non-VTE terminals
+        // (SGR button code 32 not recognized as motion). If dragState exists, treat as mousemove.
+        if (dragState) {
+          const dx = Math.abs(ev.x - dragState.startScreenX);
+          const dy = Math.abs(ev.y - dragState.startScreenY);
+          if (!dragState.isDragging && (dx + dy) >= 2) {
+            dragState.isDragging = true;
+          }
+          if (dragState.isDragging) {
+            const xt = dragState.xtermWidget;
+            const term = (xt as any).term;
+            const { col, bufferRow } = screenToBufferCoords(xt, ev.x, ev.y);
+            term.selectionManager._model.selectionEnd = [col, bufferRow];
+            screen.render();
+          }
+          return;
+        }
+
+        // Find which visible xterm widget was clicked
+        const visibleIndices = splitVisible ?? [activeIndex];
+        let targetXterm: InstanceType<typeof XTerm> | null = null;
+        let targetIndex = -1;
+
+        for (const idx of visibleIndices) {
+          const xt = terminals[idx].xterm;
+          if ((xt as any).hidden) continue;
+          const aleft = (xt as any).aleft;
+          const atop = (xt as any).atop;
+          const w = (xt as any).width as number;
+          const h = (xt as any).height as number;
+          if (ev.x >= aleft && ev.x < aleft + w && ev.y >= atop && ev.y < atop + h) {
+            targetXterm = xt;
+            targetIndex = idx;
+            break;
+          }
+        }
+
+        if (!targetXterm) return;
+
+        // Clear any previous selection
+        for (const t of terminals) {
+          const sm = (t.xterm as any).term?.selectionManager?._model;
+          if (sm) sm.clearSelection();
+        }
+
+        const { col, bufferRow } = screenToBufferCoords(targetXterm, ev.x, ev.y);
+        const sm = (targetXterm as any).term.selectionManager._model;
+        sm.selectionStart = [col, bufferRow];
+        sm.selectionEnd = null;
+        sm.selectionStartLength = 0;
+        sm.isSelectAllActive = false;
+
+        dragState = {
+          startScreenX: ev.x,
+          startScreenY: ev.y,
+          xtermWidget: targetXterm,
+          terminalIndex: targetIndex,
+          isDragging: false,
+        };
+
+        targetXterm.focus();
+      }
+
+      else if (ev.action === "mousemove" && dragState) {
+        const dx = Math.abs(ev.x - dragState.startScreenX);
+        const dy = Math.abs(ev.y - dragState.startScreenY);
+
+        if (!dragState.isDragging && (dx + dy) >= 2) {
+          dragState.isDragging = true;
+        }
+
+        if (dragState.isDragging) {
+          const xt = dragState.xtermWidget;
+          const term = (xt as any).term;
+          const aleft = (xt as any).aleft;
+          const atop = (xt as any).atop;
+
+          let col = Math.max(0, Math.min(ev.x - aleft, term.cols - 1));
+          let viewRow = Math.max(0, Math.min(ev.y - atop, term.rows - 1));
+          const bufferRow = term.ydisp + viewRow;
+
+          term.selectionManager._model.selectionEnd = [col, bufferRow];
+          screen.render();
+        }
+      }
+
+      else if (ev.action === "mouseup" && dragState) {
+        if (dragState.isDragging) {
+          // Copy selection to clipboard
+          const term = (dragState.xtermWidget as any).term;
+          const text = term.selectionManager.selectionText;
+
+          if (text && text.length > 0) {
+            try {
+              execFileSync("pbcopy", [], { input: text });
+            } catch {
+              // Silently fail if pbcopy unavailable
+            }
+          }
+        } else {
+          // Click (not drag) — clear selection and switch focus if needed
+          const sm = (dragState.xtermWidget as any).term.selectionManager._model;
+          sm.clearSelection();
+
+          const idx = dragState.terminalIndex;
+          if (idx !== -1) {
+            if (idx !== activeIndex) {
+              activeIndex = idx;
+              updateSidebarItems();
+            }
+            terminals[activeIndex].xterm.focus();
+          }
+          screen.render();
+        }
+
+        dragState = null;
       }
     });
 

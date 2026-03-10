@@ -94,8 +94,8 @@ function createMcpServer(context: McpSharedContext) {
     // Inject text, then Escape (dismiss autocomplete), then Enter (submit)
     // See: https://github.com/anthropics/claude-code/issues/15553
     terminalRef.injectInput(prompt);
-    setTimeout(() => terminalRef.injectInput("\x1b"), 300);   // Escape
-    setTimeout(() => terminalRef.injectInput("\r"), 400);      // Enter
+    setTimeout(() => terminalRef.injectInput("\x1b"), 100);   // Escape
+    setTimeout(() => terminalRef.injectInput("\r"), 200);      // Enter
 
     try {
       const response = await responsePromise;
