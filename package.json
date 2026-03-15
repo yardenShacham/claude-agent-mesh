@@ -1,23 +1,39 @@
 {
   "name": "claude-agent-mesh",
-  "version": "1.0.0",
-  "description": "CLI tool that orchestrates multiple Claude Code sessions as specialized agents",
+  "version": "2.0.0",
+  "description": "Electron desktop app that orchestrates multiple Claude Code sessions as specialized agents",
   "type": "module",
-  "bin": {
-    "agent-mesh": "dist/cli.js"
-  },
+  "main": "dist/main/index.js",
   "scripts": {
-    "build": "tsc && chmod +x dist/cli.js",
-    "dev": "tsc -w"
+    "dev": "concurrently -k \"vite\" \"tsc -p tsconfig.main.json --watch\" \"tsc -p tsconfig.preload.json --watch\" \"wait-on tcp:5173 && electron .\"",
+    "build": "vite build && tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json",
+    "package": "npm run build && electron-builder",
+    "postinstall": "electron-rebuild",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "blessed-xterm": "^1.5.1",
-    "commander": "^13.1.0"
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "node-pty": "^1.0.0"
   },
   "devDependencies": {
-    "@types/blessed": "^0.1.27",
+    "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22.15.0",
-    "typescript": "^5.8.3"
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "concurrently": "^9.1.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0",
+    "electron-rebuild": "^3.2.9",
+    "prettier": "^3.8.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.0.0",
+    "wait-on": "^8.0.0"
   }
 }

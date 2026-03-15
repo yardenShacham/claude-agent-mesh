@@ -18,7 +18,7 @@ export function agentsFileExists() {
 
 export function getExampleConfigPath() {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  return path.join(__dirname, "..", "config", "agents.example.json");
+  return path.join(__dirname, "..", "..", "config", "agents.example.json");
 }
 
 export function copyExampleConfig() {
@@ -42,7 +42,9 @@ export function getAgent(name: string) {
   const registry = loadRegistry();
   const agent = registry.agents.find((a) => a.name === name);
   if (!agent) {
-    throw new Error(`Agent "${name}" not found in registry. Available: ${registry.agents.map((a) => a.name).join(", ")}`);
+    throw new Error(
+      `Agent "${name}" not found in registry. Available: ${registry.agents.map((a) => a.name).join(", ")}`,
+    );
   }
   return agent;
 }

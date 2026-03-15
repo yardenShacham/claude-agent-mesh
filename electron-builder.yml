@@ -1,0 +1,11 @@
+appId: com.claude-agent-mesh.app
+productName: Agent Mesh
+directories:
+  output: release
+files:
+  - dist/**/*
+  - config/**/*
+  - "!node_modules/**/*"
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
