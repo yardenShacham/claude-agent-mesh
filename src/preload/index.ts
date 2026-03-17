@@ -56,6 +56,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // App actions
   reloadAll: () => ipcRenderer.invoke("app:reload-all"),
+  saveAgents: (agents: Array<{ name: string; directory: string; description: string }>) =>
+    ipcRenderer.invoke("agents:save", agents),
+  browseDirectory: () => ipcRenderer.invoke("dialog:open-directory"),
 
   // Menu events
   onMenuSwitchAgent: (cb: (name: string) => void) => {
@@ -95,5 +98,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const handler = () => cb();
     ipcRenderer.on("menu:show-shortcuts", handler);
     return () => ipcRenderer.removeListener("menu:show-shortcuts", handler);
+  },
+  onMenuManageAgents: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("menu:manage-agents", handler);
+    return () => ipcRenderer.removeListener("menu:manage-agents", handler);
   },
 });

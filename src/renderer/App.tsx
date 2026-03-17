@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TerminalArea } from "./components/TerminalArea";
 import { StatusBar } from "./components/StatusBar";
 import { CommandPalette } from "./components/CommandPalette";
+import { ManageAgentsModal } from "./components/ManageAgentsModal";
 
 export function App() {
   return (
@@ -14,6 +15,7 @@ export function App() {
         </div>
         <StatusBar />
         <CommandPalette />
+        <ManageAgentsModal />
       </div>
     </AgentProvider>
   );

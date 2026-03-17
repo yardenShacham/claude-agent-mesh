@@ -13,7 +13,14 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { agents, setActiveAgent, setSplitAgents, setSidebarVisible, sidebarVisible } = useAgents();
+  const {
+    agents,
+    setActiveAgent,
+    setSplitAgents,
+    setSidebarVisible,
+    sidebarVisible,
+    setManageAgentsOpen,
+  } = useAgents();
 
   const commands = useMemo<Command[]>(() => {
     const cmds: Command[] = [];
@@ -53,6 +60,13 @@ export function CommandPalette() {
     });
 
     cmds.push({
+      id: "manage-agents",
+      label: "Manage Agents",
+      shortcut: "Cmd+Shift+A",
+      execute: () => setManageAgentsOpen(true),
+    });
+
+    cmds.push({
       id: "reload-all",
       label: "Reload All Agents",
       shortcut: "Cmd+Shift+R",
@@ -78,7 +92,14 @@ export function CommandPalette() {
     });
 
     return cmds;
-  }, [agents, sidebarVisible, setActiveAgent, setSplitAgents, setSidebarVisible]);
+  }, [
+    agents,
+    sidebarVisible,
+    setActiveAgent,
+    setSplitAgents,
+    setSidebarVisible,
+    setManageAgentsOpen,
+  ]);
 
   const filtered = useMemo(() => {
     if (!query) return commands;
@@ -102,12 +123,11 @@ export function CommandPalette() {
 
   // Also listen for menu show-shortcuts
   useEffect(() => {
-    const unsub = window.electronAPI?.onMenuShowShortcuts(() => {
+    return window.electronAPI?.onMenuShowShortcuts(() => {
       setOpen(true);
       setQuery("");
       setSelectedIndex(0);
     });
-    return unsub;
   }, []);
 
   // Focus input when opened

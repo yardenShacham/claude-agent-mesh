@@ -82,6 +82,13 @@ export function buildAppMenu(agents: AgentConfig[], window: BrowserWindow) {
       label: "Agents",
       submenu: [
         {
+          label: "Manage Agents\u2026",
+          accelerator: "CmdOrCtrl+Shift+A",
+          click: () => {
+            window.webContents.send("menu:manage-agents");
+          },
+        },
+        {
           label: "Reload All",
           accelerator: "CmdOrCtrl+Shift+R",
           click: () => {

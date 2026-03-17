@@ -25,6 +25,8 @@ export interface ElectronAPI {
   getMcpStatus: () => Promise<McpStatus>;
   onMcpStatusUpdate: (cb: (data: McpStatus) => void) => () => void;
   reloadAll: () => Promise<void>;
+  saveAgents: (agents: Array<{ name: string; directory: string; description: string }>) => Promise<{ success: true }>;
+  browseDirectory: () => Promise<string | null>;
   onMenuSwitchAgent: (cb: (name: string) => void) => () => void;
   onMenuToggleSidebar: (cb: () => void) => () => void;
   onMenuSplitAll: (cb: () => void) => () => void;
@@ -33,6 +35,7 @@ export interface ElectronAPI {
   onMenuRefreshTerminals: (cb: () => void) => () => void;
   triggerRefreshTerminals: () => void;
   onMenuShowShortcuts: (cb: () => void) => () => void;
+  onMenuManageAgents: (cb: () => void) => () => void;
 }
 
 declare global {

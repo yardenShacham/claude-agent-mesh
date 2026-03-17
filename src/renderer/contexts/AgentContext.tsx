@@ -10,6 +10,8 @@ interface AgentContextValue {
   sidebarVisible: boolean;
   setSidebarVisible: (v: boolean) => void;
   mcpStatus: McpStatus | null;
+  manageAgentsOpen: boolean;
+  setManageAgentsOpen: (v: boolean) => void;
 }
 
 const AgentContext = createContext<AgentContextValue | null>(null);
@@ -26,6 +28,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [splitAgents, setSplitAgents] = useState<string[] | null>(null);
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [mcpStatus, setMcpStatus] = useState<McpStatus | null>(null);
+  const [manageAgentsOpen, setManageAgentsOpen] = useState(false);
 
   // Load initial agent list
   useEffect(() => {
@@ -39,7 +42,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   // Subscribe to state updates
   useEffect(() => {
-    const unsub = window.electronAPI?.onAgentStateUpdate((data) => {
+    return window.electronAPI?.onAgentStateUpdate((data) => {
       setAgents((prev) =>
         prev.map((a) =>
           a.name === data.name
@@ -52,7 +55,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         ),
       );
     });
-    return unsub;
   }, []);
 
   // Subscribe to MCP status updates
@@ -79,6 +81,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       }),
       window.electronAPI?.onMenuFocusActive(() => setSplitAgents(null)),
       window.electronAPI?.onMenuReloadAll(() => window.electronAPI.reloadAll()),
+      window.electronAPI?.onMenuManageAgents(() => setManageAgentsOpen(true)),
     ];
     return () => unsubs.forEach((fn) => fn?.());
   }, []);
@@ -104,6 +107,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         sidebarVisible,
         setSidebarVisible,
         mcpStatus,
+        manageAgentsOpen,
+        setManageAgentsOpen,
       }}
     >
       {children}

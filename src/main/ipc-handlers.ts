@@ -1,8 +1,11 @@
-import { ipcMain } from "electron";
+import { ipcMain, dialog, type BrowserWindow } from "electron";
+import fs from "node:fs";
 import type { AgentConfig, McpSharedContext } from "../shared/types.js";
 import type { PtyManager } from "./pty-manager.js";
 import { clearSessions } from "../shared/session-store.js";
+import { loadRegistry, saveRegistry } from "../shared/agent-registry.js";
 import { registerMcpForAgent, unregisterMcpForAgent } from "./agent-lifecycle.js";
+import { buildAppMenu } from "./menu.js";
 
 interface IpcDeps {
   agents: AgentConfig[];
@@ -11,10 +14,50 @@ interface IpcDeps {
   mcpPort: number;
   mcpUrl: string;
   getMcpSessionCount: () => number;
+  mainWindow: BrowserWindow;
+}
+
+async function performFullReload(deps: IpcDeps) {
+  const { agents, ptyManager, mcpUrl, mainWindow } = deps;
+
+  // Kill all PTYs
+  ptyManager.killAll();
+
+  // Unregister MCP from old agent directories
+  for (const agent of agents) {
+    unregisterMcpForAgent(agent.directory);
+  }
+
+  // Clear sessions
+  clearSessions();
+
+  // Wait for PTYs to close
+  await new Promise((r) => setTimeout(r, 500));
+
+  // Re-read registry from disk
+  const registry = loadRegistry();
+  const newAgents = registry.agents;
+
+  // Update the agents array in-place
+  agents.length = 0;
+  agents.push(...newAgents);
+
+  // Re-register MCP for all agents
+  for (const agent of agents) {
+    registerMcpForAgent(agent.directory, mcpUrl);
+  }
+
+  // Respawn all PTYs
+  for (const agent of agents) {
+    ptyManager.spawnAgent(agent, agents, mcpUrl);
+  }
+
+  // Rebuild menu
+  buildAppMenu(agents, mainWindow);
 }
 
 export function registerIpcHandlers(deps: IpcDeps) {
-  const { agents, ptyManager, sharedContext, mcpPort, mcpUrl, getMcpSessionCount } = deps;
+  const { agents, ptyManager, sharedContext, mcpPort, mcpUrl, getMcpSessionCount, mainWindow } = deps;
 
   ipcMain.handle("agents:list", () => {
     return agents.map((a) => ({
@@ -52,28 +95,46 @@ export function registerIpcHandlers(deps: IpcDeps) {
   });
 
   ipcMain.handle("app:reload-all", async () => {
-    // Kill all PTYs
-    ptyManager.killAll();
+    await performFullReload(deps);
+  });
 
-    // Unregister MCP
-    for (const agent of agents) {
-      unregisterMcpForAgent(agent.directory);
+  ipcMain.handle("agents:save", async (_event, newAgents: AgentConfig[]) => {
+    // Validate
+    for (const agent of newAgents) {
+      if (!agent.name || !agent.name.trim()) {
+        throw new Error("Each agent must have a name");
+      }
+      if (!agent.directory || !agent.directory.trim()) {
+        throw new Error(`Agent "${agent.name}" must have a directory`);
+      }
+      if (!fs.existsSync(agent.directory)) {
+        throw new Error(`Directory for agent "${agent.name}" does not exist: ${agent.directory}`);
+      }
     }
 
-    // Clear sessions
-    clearSessions();
-
-    // Wait for PTYs to close
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Re-register MCP
-    for (const agent of agents) {
-      registerMcpForAgent(agent.directory, mcpUrl);
+    // Check for duplicate names
+    const names = new Set<string>();
+    for (const agent of newAgents) {
+      if (names.has(agent.name)) {
+        throw new Error(`Duplicate agent name: "${agent.name}"`);
+      }
+      names.add(agent.name);
     }
 
-    // Respawn all
-    for (const agent of agents) {
-      ptyManager.spawnAgent(agent, agents, mcpUrl);
-    }
+    // Save to disk
+    saveRegistry(newAgents);
+
+    // Perform full reload
+    await performFullReload(deps);
+
+    return { success: true };
+  });
+
+  ipcMain.handle("dialog:open-directory", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openDirectory"],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
   });
 }

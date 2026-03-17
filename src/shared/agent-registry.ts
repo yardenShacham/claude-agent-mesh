@@ -53,3 +53,9 @@ export function getAllAgents() {
   const registry = loadRegistry();
   return registry.agents;
 }
+
+export function saveRegistry(agents: AgentConfig[]) {
+  ensureMeshDir();
+  const data: AgentRegistry = { agents };
+  fs.writeFileSync(AGENTS_FILE, JSON.stringify(data, null, 2), "utf-8");
+}

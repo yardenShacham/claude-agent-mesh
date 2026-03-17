@@ -195,6 +195,7 @@ async function createWindow() {
     mcpPort: mcpServer.port,
     mcpUrl,
     getMcpSessionCount: mcpServer.getSessionCount,
+    mainWindow,
   });
 
   // 10. Push MCP status updates to renderer periodically

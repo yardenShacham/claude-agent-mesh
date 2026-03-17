@@ -108,12 +108,23 @@ export function Terminal({ agentName, visible }: TerminalProps) {
           fitAddon.fit();
           window.electronAPI.resizePty(agentName, terminal.cols, terminal.rows);
 
-          // Set up ResizeObserver for subsequent resizes
+          // Set up ResizeObserver for subsequent resizes.
+          // Debounce and skip no-ops to avoid scroll jumps during output.
+          let resizeTimer = 0;
+          let lastCols = terminal.cols;
+          let lastRows = terminal.rows;
           const observer = new ResizeObserver(() => {
-            if (container.offsetWidth > 0 && container.offsetHeight > 0) {
-              fitAddon.fit();
-              window.electronAPI.resizePty(agentName, terminal.cols, terminal.rows);
-            }
+            clearTimeout(resizeTimer);
+            resizeTimer = window.setTimeout(() => {
+              if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+                fitAddon.fit();
+                if (terminal.cols !== lastCols || terminal.rows !== lastRows) {
+                  lastCols = terminal.cols;
+                  lastRows = terminal.rows;
+                  window.electronAPI.resizePty(agentName, terminal.cols, terminal.rows);
+                }
+              }
+            }, 100);
           });
           observer.observe(container);
           resizeObserverRef.current = observer;
@@ -147,7 +158,7 @@ export function Terminal({ agentName, visible }: TerminalProps) {
   //    cycle — Claude Code re-renders its UI at the "new" size, which populates
   //    fresh data into the terminal buffer and forces a complete canvas repaint.
   useEffect(() => {
-    const unsub = window.electronAPI.onMenuRefreshTerminals(() => {
+    return window.electronAPI.onMenuRefreshTerminals(() => {
       if (terminalRef.current && openedRef.current && fitAddonRef.current) {
         const terminal = terminalRef.current;
         const fitAddon = fitAddonRef.current;
@@ -170,7 +181,6 @@ export function Terminal({ agentName, visible }: TerminalProps) {
         }, 100);
       }
     });
-    return unsub;
   }, [agentName]);
 
   // Cleanup on unmount
