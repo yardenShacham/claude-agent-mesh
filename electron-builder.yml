@@ -8,4 +8,5 @@ files:
   - "!node_modules/**/*"
 mac:
   target: dmg
+  icon: build/icon.icns
   category: public.app-category.developer-tools
