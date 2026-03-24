@@ -36,6 +36,7 @@ export interface ElectronAPI {
   triggerRefreshTerminals: () => void;
   onMenuShowShortcuts: (cb: () => void) => () => void;
   onMenuManageAgents: (cb: () => void) => () => void;
+  getFilePath: (file: File) => string;
 }
 
 declare global {

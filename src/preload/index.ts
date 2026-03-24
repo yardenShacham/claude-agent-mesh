@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   // Agent management
@@ -104,4 +104,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("menu:manage-agents", handler);
     return () => ipcRenderer.removeListener("menu:manage-agents", handler);
   },
+
+  // File utilities
+  getFilePath: (file: File) => webUtils.getPathForFile(file),
 });

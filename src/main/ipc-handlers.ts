@@ -14,6 +14,7 @@ interface IpcDeps {
   mcpPort: number;
   mcpUrl: string;
   getMcpSessionCount: () => number;
+  clearMcpSessions: () => Promise<void>;
   mainWindow: BrowserWindow;
 }
 
@@ -31,8 +32,11 @@ async function performFullReload(deps: IpcDeps) {
   // Clear sessions
   clearSessions();
 
-  // Wait for PTYs to close
+  // Wait for PTYs to fully close
   await new Promise((r) => setTimeout(r, 500));
+
+  // Clear MCP sessions AFTER PTYs have died (so no stale reconnects)
+  await deps.clearMcpSessions();
 
   // Re-read registry from disk
   const registry = loadRegistry();

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import type { AgentInfo, McpStatus } from "../../preload/api";
 
 interface AgentContextValue {
@@ -12,6 +12,9 @@ interface AgentContextValue {
   mcpStatus: McpStatus | null;
   manageAgentsOpen: boolean;
   setManageAgentsOpen: (v: boolean) => void;
+  splitModalOpen: boolean;
+  setSplitModalOpen: (v: boolean) => void;
+  refreshAgents: () => Promise<void>;
 }
 
 const AgentContext = createContext<AgentContextValue | null>(null);
@@ -29,6 +32,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [mcpStatus, setMcpStatus] = useState<McpStatus | null>(null);
   const [manageAgentsOpen, setManageAgentsOpen] = useState(false);
+  const [splitModalOpen, setSplitModalOpen] = useState(false);
+  const splitAgentsRef = useRef(splitAgents);
+  splitAgentsRef.current = splitAgents;
 
   // Load initial agent list
   useEffect(() => {
@@ -74,10 +80,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       }),
       window.electronAPI?.onMenuToggleSidebar(() => setSidebarVisible((v) => !v)),
       window.electronAPI?.onMenuSplitAll(() => {
-        setAgents((prev) => {
-          setSplitAgents(prev.map((a) => a.name));
-          return prev;
-        });
+        if (splitAgentsRef.current) {
+          setSplitAgents(null);
+        } else {
+          setSplitModalOpen(true);
+        }
       }),
       window.electronAPI?.onMenuFocusActive(() => setSplitAgents(null)),
       window.electronAPI?.onMenuReloadAll(() => window.electronAPI.reloadAll()),
@@ -85,6 +92,16 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     ];
     return () => unsubs.forEach((fn) => fn?.());
   }, []);
+
+  const refreshAgents = useCallback(async () => {
+    const list = await window.electronAPI?.listAgents();
+    if (list) {
+      setAgents(list);
+      if (activeAgent && !list.find((a) => a.name === activeAgent)) {
+        setActiveAgent(list.length > 0 ? list[0].name : null);
+      }
+    }
+  }, [activeAgent]);
 
   const handleSetActiveAgent = useCallback(
     (name: string) => {
@@ -109,6 +126,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         mcpStatus,
         manageAgentsOpen,
         setManageAgentsOpen,
+        splitModalOpen,
+        setSplitModalOpen,
+        refreshAgents,
       }}
     >
       {children}

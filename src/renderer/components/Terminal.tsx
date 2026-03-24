@@ -1,7 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Terminal as XTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
+
+/** Shell-escape a file path (wrap in single quotes if it contains special chars). */
+function shellEscape(path: string) {
+  if (/[^a-zA-Z0-9_.\/\-]/.test(path)) {
+    return "'" + path.replace(/'/g, "'\\''") + "'";
+  }
+  return path;
+}
 
 interface TerminalProps {
   agentName: string;
@@ -42,6 +50,64 @@ export function Terminal({ agentName, visible }: TerminalProps) {
   const unsubDataRef = useRef<(() => void) | null>(null);
   const unsubExitRef = useRef<(() => void) | null>(null);
   const rafIdRef = useRef(0);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  // Drag-and-drop: use native capture-phase listeners so events fire before
+  // xterm.js child elements can intercept or swallow them.
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    let dragCounter = 0;
+
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter++;
+      setDragging(true);
+    };
+    const onDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        setDragging(false);
+      }
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter = 0;
+      setDragging(false);
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      const paths: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const filePath = window.electronAPI.getFilePath(files[i]);
+        if (filePath) paths.push(shellEscape(filePath));
+      }
+      if (paths.length > 0) {
+        window.electronAPI.writePty(agentName, paths.join(" "));
+      }
+    };
+
+    const opts = { capture: true };
+    wrapper.addEventListener("dragover", onDragOver, opts);
+    wrapper.addEventListener("dragenter", onDragEnter, opts);
+    wrapper.addEventListener("dragleave", onDragLeave, opts);
+    wrapper.addEventListener("drop", onDrop, opts);
+
+    return () => {
+      wrapper.removeEventListener("dragover", onDragOver, opts);
+      wrapper.removeEventListener("dragenter", onDragEnter, opts);
+      wrapper.removeEventListener("dragleave", onDragLeave, opts);
+      wrapper.removeEventListener("drop", onDrop, opts);
+    };
+  }, [agentName]);
 
   // Single effect: create terminal (lazily) and open into DOM when visible
   useEffect(() => {
@@ -117,11 +183,22 @@ export function Terminal({ agentName, visible }: TerminalProps) {
             clearTimeout(resizeTimer);
             resizeTimer = window.setTimeout(() => {
               if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+                // Remember if viewport is at the bottom before fit() potentially
+                // disrupts scroll position during active output
+                const buf = terminal.buffer.active;
+                const wasAtBottom = buf.viewportY === buf.baseY;
+
                 fitAddon.fit();
                 if (terminal.cols !== lastCols || terminal.rows !== lastRows) {
                   lastCols = terminal.cols;
                   lastRows = terminal.rows;
                   window.electronAPI.resizePty(agentName, terminal.cols, terminal.rows);
+                }
+
+                // Restore scroll position to prevent the "scroll jumps up" bug
+                // where fit() disrupts auto-scroll during active output
+                if (wasAtBottom) {
+                  terminal.scrollToBottom();
                 }
               }
             }, 100);
@@ -137,10 +214,24 @@ export function Terminal({ agentName, visible }: TerminalProps) {
       };
       rafIdRef.current = requestAnimationFrame(tryOpen);
     } else {
-      // Already opened — just refit
+      // Already opened — do a full refresh (like manual Cmd+Shift+T).
+      // After display:none → display:block the canvas context and glyph
+      // texture atlas can be stale, so a simple fit+resize isn't enough.
       requestAnimationFrame(() => {
+        if (typeof (terminal as any).clearTextureAtlas === "function") {
+          (terminal as any).clearTextureAtlas();
+        }
+
         fitAddon.fit();
-        window.electronAPI.resizePty(agentName, terminal.cols, terminal.rows);
+        terminal.refresh(0, terminal.rows - 1);
+
+        // Fake resize cycle to force Claude Code's TUI to fully redraw
+        const cols = terminal.cols;
+        const rows = terminal.rows;
+        window.electronAPI.resizePty(agentName, cols - 1, rows);
+        setTimeout(() => {
+          window.electronAPI.resizePty(agentName, cols, rows);
+        }, 100);
       });
       terminal.focus();
     }
@@ -206,12 +297,19 @@ export function Terminal({ agentName, visible }: TerminalProps) {
 
   return (
     <div
-      ref={containerRef}
+      ref={wrapperRef}
       className="h-full w-full"
       style={{
         display: visible ? "block" : "none",
-        background: "var(--bg-primary)",
+        outline: dragging ? "2px dashed var(--accent)" : "none",
+        outlineOffset: "-2px",
       }}
-    />
+    >
+      <div
+        ref={containerRef}
+        className="h-full w-full"
+        style={{ background: "var(--bg-primary)" }}
+      />
+    </div>
   );
 }

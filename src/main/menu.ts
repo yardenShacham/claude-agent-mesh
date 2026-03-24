@@ -49,8 +49,8 @@ export function buildAppMenu(agents: AgentConfig[], window: BrowserWindow) {
           },
         },
         {
-          label: "Split All",
-          accelerator: "CmdOrCtrl+\\",
+          label: "Split View\u2026",
+          accelerator: "CmdOrCtrl+Shift+S",
           click: () => {
             window.webContents.send("menu:split-all");
           },

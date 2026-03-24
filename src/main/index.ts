@@ -195,6 +195,7 @@ async function createWindow() {
     mcpPort: mcpServer.port,
     mcpUrl,
     getMcpSessionCount: mcpServer.getSessionCount,
+    clearMcpSessions: mcpServer.clearSessions,
     mainWindow,
   });
 

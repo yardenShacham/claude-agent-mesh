@@ -270,7 +270,7 @@ export async function startMcpHttpServer(context: McpSharedContext) {
     res.end("Method not allowed");
   });
 
-  return new Promise<{ port: number; stop: () => Promise<void>; getSessionCount: () => number }>(
+  return new Promise<{ port: number; stop: () => Promise<void>; getSessionCount: () => number; clearSessions: () => Promise<void> }>(
     (resolve) => {
       httpServer.listen(0, "127.0.0.1", () => {
         const addr = httpServer.address();
@@ -291,7 +291,14 @@ export async function startMcpHttpServer(context: McpSharedContext) {
           });
         };
 
-        resolve({ port, stop, getSessionCount: () => sessions.size });
+        const clearSessions = async () => {
+          for (const [, session] of sessions) {
+            try { await session.transport.close(); } catch { /* ignore */ }
+          }
+          sessions.clear();
+        };
+
+        resolve({ port, stop, clearSessions, getSessionCount: () => sessions.size });
       });
     },
   );

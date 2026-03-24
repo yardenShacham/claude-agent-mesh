@@ -4,6 +4,7 @@ import { TerminalArea } from "./components/TerminalArea";
 import { StatusBar } from "./components/StatusBar";
 import { CommandPalette } from "./components/CommandPalette";
 import { ManageAgentsModal } from "./components/ManageAgentsModal";
+import { SplitAgentsModal } from "./components/SplitAgentsModal";
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
         <StatusBar />
         <CommandPalette />
         <ManageAgentsModal />
+        <SplitAgentsModal />
       </div>
     </AgentProvider>
   );

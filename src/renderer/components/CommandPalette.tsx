@@ -20,6 +20,7 @@ export function CommandPalette() {
     setSidebarVisible,
     sidebarVisible,
     setManageAgentsOpen,
+    setSplitModalOpen,
   } = useAgents();
 
   const commands = useMemo<Command[]>(() => {
@@ -40,9 +41,9 @@ export function CommandPalette() {
 
     cmds.push({
       id: "split-view",
-      label: "Split View — Show all agents",
-      shortcut: "Cmd+\\",
-      execute: () => setSplitAgents(agents.map((a) => a.name)),
+      label: "Split View — Select agents",
+      shortcut: "Cmd+Shift+S",
+      execute: () => setSplitModalOpen(true),
     });
 
     cmds.push({
@@ -99,6 +100,7 @@ export function CommandPalette() {
     setSplitAgents,
     setSidebarVisible,
     setManageAgentsOpen,
+    setSplitModalOpen,
   ]);
 
   const filtered = useMemo(() => {

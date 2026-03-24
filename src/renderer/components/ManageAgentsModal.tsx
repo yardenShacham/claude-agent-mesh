@@ -8,7 +8,7 @@ interface EditableAgent {
 }
 
 export function ManageAgentsModal() {
-  const { agents, manageAgentsOpen, setManageAgentsOpen } = useAgents();
+  const { agents, manageAgentsOpen, setManageAgentsOpen, refreshAgents } = useAgents();
   const [editedAgents, setEditedAgents] = useState<EditableAgent[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export function ManageAgentsModal() {
       setError(null);
       setSaving(false);
     }
-  }, [manageAgentsOpen, agents]);
+  }, [manageAgentsOpen]);
 
   // Close on Escape
   useEffect(() => {
@@ -103,7 +103,9 @@ export function ManageAgentsModal() {
 
     try {
       await window.electronAPI.saveAgents(editedAgents);
+      await refreshAgents();
       setManageAgentsOpen(false);
+      setTimeout(() => window.electronAPI.triggerRefreshTerminals(), 300);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
